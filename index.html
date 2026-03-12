@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Link Manager Pro</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        :root {
+            --bg: #000000;
+            --field: #1c1c1e;
+            --accent: #EB3C87;
+            --text: #ffffff;
+            --sub-text: #8e8e93;
+            --ios-ease: cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .layout { display: flex; width: 100%; height: 100%; position: relative; }
+
+        /* ИНТЕРФЕЙС СЛЕВА */
+        .side-ui {
+            flex: 0 0 45%;
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            padding-left: 80px;
+            z-index: 10;
+        }
+
+        .content-box {
+            width: 100%;
+            max-width: 320px;
+            animation: fadeIn 0.8s var(--ios-ease);
+        }
+
+        h1 { 
+            font-size: 36px; 
+            font-weight: 800; 
+            margin-bottom: 32px; 
+            letter-spacing: -1.5px;
+        }
+
+        /* ИНПУТ */
+        input {
+            width: 100%;
+            height: 48px;
+            background: var(--field);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 999px;
+            padding: 0 22px;
+            color: white;
+            font-size: 16px;
+            outline: none;
+            margin-bottom: 12px;
+            transition: all 0.3s var(--ios-ease);
+        }
+
+        input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px rgba(235, 60, 135, 0.15);
+        }
+
+        /* КНОПКИ */
+        .btn {
+            width: 100%;
+            height: 44px;
+            border-radius: 999px;
+            border: none;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: all 0.2s var(--ios-ease);
+        }
+
+        .btn-main { background: var(--accent); color: white; }
+        .btn-main:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(235, 60, 135, 0.3); }
+
+        .btn-sub { background: rgba(255, 255, 255, 0.05); color: var(--sub-text); }
+        .btn-sub:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+
+        .btn:active { transform: scale(0.96); }
+
+        /* ВИЗУАЛ СПРАВА */
+        .side-visual {
+            flex: 1;
+            margin-left: -50px;
+            height: 100vh;
+        }
+
+        .image-mask {
+            width: 100%;
+            height: 100%;
+            clip-path: url(#curve);
+            animation: slideIn 1.2s var(--ios-ease);
+        }
+
+        .image-mask img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* SVG ФИКС - РАСТЯНУТ НА ВЕСЬ КРАЙ */
+        svg.defs { position: absolute; width: 0; height: 0; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes slideIn { from { transform: translateX(60px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <svg class="defs">
+        <defs>
+            <clipPath id="curve" clipPathUnits="objectBoundingBox">
+                <path d="M 1,0 L 0.08,0 C 0.02,0.3 0.02,0.7 0.08,1 L 1,1 L 1,0 Z" />
+            </clipPath>
+        </defs>
+    </svg>
+
+    <div class="layout">
+        <div class="side-ui">
+            <div class="content-box">
+                <h1>Link Manager</h1>
+                
+                <input type="text" id="urlInput" placeholder="Введите ссылку..." autocomplete="off">
+
+                <button class="btn btn-main" id="goBtn">
+                    <i data-lucide="external-link" size="18"></i>
+                    Открыть
+                </button>
+                <button class="btn btn-sub" id="saveBtn">
+                    <i data-lucide="cloud-upload" size="18"></i>
+                    Обновить базу
+                </button>
+            </div>
+        </div>
+
+        <div class="side-visual">
+            <div class="image-mask">
+                <img src="BG.jpg" alt="Background">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 1. Инициализация иконок
+        lucide.createIcons();
+
+        // 2. Конфиг Firebase
+        const firebaseConfig = { 
+            databaseURL: "https://linkto-3365a-default-rtdb.asia-southeast1.firebasedatabase.app/" 
+        };
+
+        // 3. Старт Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const linkRef = database.ref('links/target_url');
+
+        const urlInput = document.getElementById('urlInput');
+        const saveBtn = document.getElementById('saveBtn');
+        const goBtn = document.getElementById('goBtn');
+
+        // 4. Получение данных (Realtime)
+        linkRef.on('value', (snap) => {
+            const val = snap.val();
+            if (val && document.activeElement !== urlInput) {
+                urlInput.value = val;
+            }
+        });
+
+        // 5. Функция сохранения (Жесткая фиксация)
+        saveBtn.onclick = function() {
+            const val = urlInput.value.trim();
+            if (val.length > 0) {
+                linkRef.set(val)
+                    .then(() => {
+                        // Визуальный фидбек
+                        saveBtn.style.background = "rgba(235, 60, 135, 0.3)";
+                        setTimeout(() => saveBtn.style.background = "", 400);
+                        console.log("Успешно сохранено!");
+                    })
+                    .catch((err) => {
+                        console.error("Ошибка Firebase:", err);
+                        alert("Ошибка! Проверь Rules в консоли Firebase.");
+                    });
+            }
+        };
+
+        // 6. Открыть ссылку
+        goBtn.onclick = () => {
+            const url = urlInput.value.trim();
+            if (url) {
+                const target = url.startsWith('http') ? url : 'https://' + url;
+                window.open(target, '_blank');
+            }
+        };
+    </script>
+</body>
+</html>
